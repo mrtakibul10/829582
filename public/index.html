@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10131d">
+<title>FF BD — Player UID Lookup</title>
+<style>
+:root{color-scheme:dark;--bg:#10131d;--panel:#1a2030;--line:#30394e;--gold:#ffbf36;--muted:#aab3c5}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Arial,sans-serif;background:radial-gradient(circle at top,#263047 0,#10131d 55%);color:#fff;min-height:100vh;padding:22px}
+main{max-width:760px;margin:30px auto}.brand{text-align:center;margin-bottom:22px}.brand h1{margin:0;color:var(--gold);font-size:clamp(25px,6vw,38px)}.brand p{color:var(--muted);margin:8px 0}
+.card{background:#1a2030ed;border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 18px 50px #0005}
+label{display:block;margin:12px 0 7px;color:#dce3f0}input,select,button{width:100%;padding:14px;border-radius:11px;border:1px solid var(--line);background:#101522;color:white;font-size:16px}
+button{margin-top:16px;background:linear-gradient(90deg,#ffb52d,#ffdb71);border:0;color:#171717;font-weight:800;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}.hint,.notice{font-size:13px;color:var(--muted);line-height:1.6}.notice{margin-top:16px;padding:12px;border:1px solid #66552d;border-radius:10px;background:#382d142e}
+#status{margin-top:15px;line-height:1.5}.profile{display:none;margin-top:18px}.profile h2{color:var(--gold);margin:0 0 12px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.item{padding:12px;background:#111827;border:1px solid var(--line);border-radius:10px;overflow-wrap:anywhere}.item small{display:block;color:var(--muted);margin-bottom:5px}.item strong{font-size:16px}.raw{margin-top:14px}.raw summary{cursor:pointer;color:var(--gold)}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0b101a;padding:12px;border-radius:10px;font-size:12px}
+footer{text-align:center;color:var(--muted);font-size:12px;margin:18px 0}
+@media(max-width:520px){body{padding:14px}.grid{grid-template-columns:1fr}.card{padding:15px}}
+</style>
+</head>
+<body>
+<main>
+  <header class="brand">
+    <h1>FF BD PLAYER LOOKUP</h1>
+    <p>Free Fire UID দিয়ে পাবলিক প্রোফাইল তথ্য খুঁজুন</p>
+  </header>
+  <section class="card">
+    <form id="lookupForm">
+      <label for="uid">Player UID</label>
+      <input id="uid" inputmode="numeric" autocomplete="off" maxlength="15" placeholder="যেমন: 1234567890" required>
+      <label for="region">Region</label>
+      <select id="region">
+        <option value="BD" selected>Bangladesh (BD)</option>
+        <option value="IND">India (IND)</option>
+        <option value="SG">Singapore (SG)</option>
+        <option value="BR">Brazil (BR)</option>
+        <option value="ID">Indonesia (ID)</option>
+        <option value="PK">Pakistan (PK)</option>
+        <option value="US">United States (US)</option>
+      </select>
+      <button id="submitBtn" type="submit">SEARCH PLAYER</button>
+    </form>
+    <p class="hint">শুধু Player UID ব্যবহার করো। কোনো Free Fire/Garena password, OTP বা login code এখানে দেবে না।</p>
+    <div class="notice">নোট: এটি Garena-এর অফিসিয়াল সার্ভিস নয়। তথ্য একটি third-party community API থেকে আসে; তথ্য পুরোনো, অসম্পূর্ণ বা অনুপলব্ধ হতে পারে।</div>
+    <div id="status" role="status" aria-live="polite"></div>
+    <section class="profile" id="profile">
+      <h2 id="nickname">Player Profile</h2>
+      <div class="grid" id="fields"></div>
+      <details class="raw"><summary>সম্পূর্ণ API response দেখুন</summary><pre id="raw"></pre></details>
+    </section>
+  </section>
+  <footer>FF BD Fan Project · Not affiliated with Garena or Free Fire</footer>
+</main>
+<script>
+const form=document.getElementById("lookupForm");
+const btn=document.getElementById("submitBtn");
+const statusBox=document.getElementById("status");
+const profile=document.getElementById("profile");
+const fields=document.getElementById("fields");
+const first=(obj,keys)=>{for(const k of keys){if(obj&&obj[k]!==undefined&&obj[k]!==null&&obj[k]!=="")return obj[k]}return "—"};
+function addField(label,value){
+  const div=document.createElement("div");div.className="item";
+  const small=document.createElement("small");small.textContent=label;
+  const strong=document.createElement("strong");strong.textContent=String(value);
+  div.append(small,strong);fields.append(div);
+}
+form.addEventListener("submit",async e=>{
+  e.preventDefault();
+  const uid=document.getElementById("uid").value.trim();
+  const region=document.getElementById("region").value;
+  profile.style.display="none";fields.replaceChildren();
+  statusBox.textContent="প্রোফাইল খোঁজা হচ্ছে…";btn.disabled=true;btn.textContent="PLEASE WAIT…";
+  try{
+    const res=await fetch(`/api/player?uid=${encodeURIComponent(uid)}&region=${encodeURIComponent(region)}`);
+    const result=await res.json();
+    if(!res.ok)throw new Error(result.error||"তথ্য পাওয়া যায়নি।");
+    const d=result.data||{};
+    const basic=d.basicInfo||d.basicinfo||d.accountInfo||d.AccountInfo||{};
+    const clan=d.clanBasicInfo||d.clanbasicinfo||d.guildInfo||d.GuildInfo||{};
+    const pet=d.petInfo||d.petinfo||{};
+    document.getElementById("nickname").textContent=first(basic,["nickname","nickName","AccountName"])||"Player Profile";
+    addField("UID",first(basic,["accountId","accountID","accountid","AccountID"])||uid);
+    addField("Nickname",first(basic,["nickname","nickName","AccountName"]));
+    addField("Level",first(basic,["level","Level","AccountLevel"]));
+    addField("Region",first(basic,["region","Region","AccountRegion"])||result.region);
+    addField("Likes",first(basic,["liked","likes","AccountLikes"]));
+    addField("BR Rank",first(basic,["rank","rankingPoints","BrRankPoint"]));
+    addField("CS Rank",first(basic,["csRank","csRankingPoints","CsRankPoint"]));
+    addField("Badges",first(basic,["badgeCnt","badgeCount","AccountBPBadges"]));
+    addField("Guild",first(clan,["clanName","guildName","GuildName"]));
+    addField("Pet Level",first(pet,["level","petLevel"]));
+    document.getElementById("raw").textContent=JSON.stringify(d,null,2);
+    profile.style.display="block";statusBox.textContent="প্রোফাইল তথ্য পাওয়া গেছে।";
+  }catch(err){statusBox.textContent=err.message;}
+  finally{btn.disabled=false;btn.textContent="SEARCH PLAYER";}
+});
+</script>
+</body>
+  </html>
